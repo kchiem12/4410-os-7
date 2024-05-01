@@ -1,0 +1,61 @@
+from synch import *
+
+def Game() returns game: 
+    game = {
+    .team1: {}, .team2: {}, .play_intention: {},
+    .lock(): Lock(), .isEnough: Condition(), .game_end: Condition(), 
+    .in_progress: False
+    }
+
+def game_umpire(g): 
+    #wait for sufficient amount of players
+    acquire(?g -> lock)
+
+    while ((len(g -> play_intention)) < 2): 
+        wait(?g -> isEnough, ?g -> lock)
+
+    num_players = len(g -> play_intention)
+    team_size = num_players // 2
+
+    #partition teams
+    for _ in range(team_size): 
+        let e = choose (g -> play_intention): 
+            g -> play_intention -= {e}
+            g -> team1 += e
+        
+        let f = choose(g -> play_intention): 
+            g -> play_intention -= {f}
+            g -> team2 += f
+
+    #start the game, wait for game to end
+    g -> in_progress = True
+    while g -> in_progress: 
+        wait(?g -> game_end, ?g -> lock)
+
+    release(?g -> lock)
+
+def game_join(g, id) returns teams: 
+    acquire(?g -> lock)
+
+    g -> play_intention += id
+
+    teams = (g -> team1, g -> team2)
+
+    if len(g -> play_intention) >= 2: 
+        notify(?g -> isEnough)
+
+    release(?g -> lock)
+
+def game_leave(g, id): 
+    acquire(?g -> lock)
+
+    if id in g -> team1: 
+        g -> team1 -= id
+    else: 
+        g -> team2 -= id
+    
+    if (len(g -> team1) + len(g -> team2)) == 0: 
+        g -> in_progress = False
+        notify(?g -> game_end)
+
+    release(?g -> lock)
