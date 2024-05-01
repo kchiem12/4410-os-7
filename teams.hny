@@ -1,0 +1,23 @@
+from game import *
+
+const NPLAYERS = 6
+
+thegame = Game()
+
+def player (self ):
+  # Join a game
+  let (team1, team2) = game_join(?thegame, self):
+    assert self in (team1 | team2)
+    assert (team1 & team2) == {}
+    assert len(team1) == len(team2)
+    
+
+  # Play
+
+  # Leave a game
+  game_leave(?thegame, self)
+
+spawn eternal game_umpire(?thegame)
+
+for id in{1..NPLAYERS}:
+  spawn player(id)
