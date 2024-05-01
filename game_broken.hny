@@ -1,1 +1,73 @@
-pass
+from synch import *
+
+def Game() returns game: 
+    game = {
+    .team1: {}, .team2: {}, .play_intention: {},
+    .lock: Lock(), .isEnough: Condition(), .game_end: Condition(), 
+    .partitioned: Condition(), .in_progress: False,
+    .playSet: {}
+    }
+
+def game_umpire(g): 
+    #wait for sufficient amount of players
+    while True:
+      acquire(?g -> lock)
+
+      while ((len(g -> play_intention)) < 2): 
+          wait(?g -> isEnough, ?g -> lock)
+
+      #partition teams
+      while len(g -> play_intention) > 1: 
+          let e = choose (g -> play_intention): 
+              g -> play_intention = g -> play_intention - {e}
+              g -> team1 = g -> team1 | {e}
+              g -> playSet = g -> playSet | {e}
+          
+          let f = choose(g -> play_intention): 
+              g -> play_intention = g -> play_intention - {f}
+              g -> team2 = g -> team2 | {f}
+              g -> playSet = g -> playSet | {f}
+
+      # let all players waiting to play know they can play
+      notifyAll(?g -> partitioned)
+
+      #start the game, wait for game to end
+      g -> in_progress = True
+      while g -> in_progress: 
+          wait(?g -> game_end, ?g -> lock)
+
+      release(?g -> lock)
+
+def game_join(g, id) returns teams: 
+    acquire(?g -> lock)
+
+    g -> play_intention = g -> play_intention | {id}
+
+    # check if either a game is in progress or teams are empty
+    while (g -> in_progress and (({id} & g -> playSet) == {})) or (not g -> in_progress): 
+      if g -> in_progress:
+        wait(?g -> game_end, ?g -> lock)
+      else:
+        if len(g -> play_intention) >= 2: 
+          notify(?g -> isEnough)
+        wait(?g -> partitioned, ?g -> lock)
+
+    teams = (g -> team1, g -> team2)
+
+    release(?g -> lock)
+
+def game_leave(g, id): 
+    acquire(?g -> lock)
+
+    if id in g -> team1: 
+        g -> team1 = g -> team1 - {id}
+    else: 
+        g -> team2 = g -> team2 - {id}
+    
+    g -> playSet = g -> playSet - {id}
+    
+    if (len(g -> playSet)) == 0: 
+        g -> in_progress = False
+        notifyAll(?g -> game_end)
+
+    release(?g -> lock)
